@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # SPIRE Server
+  spire-server:
+    image: ghcr.io/spiffe/spire-server:1.6.3
+    hostname: spire-server
+    volumes:
+      - ./spire/server:/opt/spire/conf/server
+      - spire-server-data:/opt/spire/data/server
+      - spire-server-logs:/opt/spire/logs
+      - spire-server-socket:/tmp/spire-server/private
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+    healthcheck:
+      test: ["CMD", "spire-server", "healthcheck", "-socketPath", "/tmp/spire-server/private/api.sock"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    networks:
+      - spire-network
+
+  # SPIRE Agent
+  spire-agent:
+    image: ghcr.io/spiffe/spire-agent:1.6.3
+    hostname: spire-agent
+    depends_on:
+      - spire-server
+    volumes:
+      - ./spire/agent:/opt/spire/conf/agent
+      - spire-agent-data:/opt/spire/data/agent
+      - spire-agent-logs:/opt/spire/logs
+      - spire-agent-socket:/tmp/spire-agent/public
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+    networks:
+      - spire-network
+
+  # SPIRE Registration
+  spire-registrar:
+    image: ghcr.io/spiffe/spire-server:1.6.3
+    depends_on:
+      - spire-server
+      - spire-agent
+    volumes:
+      - ./spire/register_entries.sh:/opt/spire/register_entries.sh
+      - spire-server-socket:/tmp/spire-server/private
+    command: ["sh", "/opt/spire/register_entries.sh"]
+    networks:
+      - spire-network
+
+  # OPA Service
+  opa:
+    image: openpolicyagent/opa:0.52.0
+    hostname: opa
+    volumes:
+      - ./opa:/opt/opa
+    command: ["run", "--server", "--config-file", "/opt/opa/config.yaml", "/opt/opa/policy.rego"]
+    networks:
+      - spire-network
+
+  # User API Service
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    hostname: user-service
+    environment:
+      - PORT=8000
+    networks:
+      - spire-network
+    labels:
+      app: user-service
+
+  # Envoy Proxy for Server Side
+  envoy-server:
+    image: envoyproxy/envoy:v1.26.0
+    hostname: envoy-server
+    depends_on:
+      - user-service
+      - opa
+      - spire-agent
+    volumes:
+      - ./envoy/server:/etc/envoy
+      - spire-agent-socket:/tmp/spire-agent/public
+    command: ["--config-path", "/etc/envoy/envoy.yaml"]
+    networks:
+      - spire-network
+    labels:
+      app: user-service
+
+  # Envoy Proxy for Agent Side
+  envoy-agent:
+    image: envoyproxy/envoy:v1.26.0
+    hostname: envoy-agent
+    depends_on:
+      - envoy-server
+      - spire-agent
+    volumes:
+      - ./envoy/agent:/etc/envoy
+      - spire-agent-socket:/tmp/spire-agent/public
+    command: ["--config-path", "/etc/envoy/envoy.yaml"]
+    ports:
+      - "9090:9090"  # Expose the agent-side Envoy proxy
+      - "9901:9901"  # Expose the admin interface
+    networks:
+      - spire-network
+    labels:
+      app: llm-agent
+
+  # LLM Agent
+  llm-agent:
+    build:
+      context: .
+      dockerfile: llm-agent/Dockerfile
+    hostname: llm-agent
+    depends_on:
+      - envoy-agent
+    environment:
+      - API_BASE_URL=http://envoy-agent:9090
+    networks:
+      - spire-network
+    labels:
+      app: llm-agent
+
+networks:
+  spire-network:
+    driver: bridge
+
+volumes:
+  spire-server-data:
+  spire-server-logs:
+  spire-server-socket:
+  spire-agent-data:
+  spire-agent-logs:
+  spire-agent-socket:

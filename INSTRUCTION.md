@@ -35,6 +35,7 @@
 - **SPIFFE/SPIRE**: chuẩn mở cung cấp danh tính cho workload.
     - SPIFFE ID, SVID (SPIFFE Verifiable Identity Document).
     - Cách SPIRE cấp phát và xác minh danh tính.
+    - x509/JWT SVID, mTLS.
 - So sánh với OIDC, JWT, client secret truyền thống.
 
 ### 4. Kiểm soát truy cập cho workload
@@ -59,60 +60,28 @@
 
 ### 2. Kiến trúc tổng thể
 
-```plaintext
-[LLM Agent] <--mTLS--> [Envoy Sidecar] <--HTTP--> [FastAPI + OPA]
+- Agent uỷ quyền request cho Envoy proxy A.
+- Envoy proxy A được cấp danh tính của Agent bằng SPIFFE ID (qua SPIRE Agent).
+- Envoy proxy A kết nối tới Envoy proxy S bằng mTLS.
+- Envoy proxy S + OPA xác thực và kiểm soát quyền truy cập dựa trên policy.
+- Envoy proxy S chuyển tiếp request tới REST API.
 
-                      [SPIRE Agent] <---> [SPIRE Server]
-```
+### 3. Kiến trúc tham chiếu
 
-- Agent được cấp danh tính bằng SPIFFE ID (qua SPIRE Agent).
-- Agent kết nối tới Envoy proxy bằng mTLS.
-- Envoy chuyển tiếp request tới REST API và đính kèm SPIFFE ID.
-- FastAPI + OPA xác thực và kiểm soát quyền truy cập dựa trên policy.
+- Envoy + SPIRE: https://spiffe.io/docs/latest/microservices/envoy/
+- Envoy + OPA: https://www.openpolicyagent.org/docs/envoy
 
 ### 3. Công nghệ sử dụng
 
 - Python: triển khai LLM agent.
 - FastAPI: triển khai REST API.
 - SPIFFE/SPIRE: cấp danh tính cho agent.
-- Envoy Proxy: làm gateway mTLS + policy forwarding.
+- Envoy Proxy: sidecar proxy, chịu trách nhiệm trung gian các kết nối mạng giữa các dịch vụ (service-to-service).
 - OPA: kiểm soát quyền truy cập theo policy JSON Rego.
 - Docker Compose: tạo môi trường thử nghiệm nhất quán.
 
-## IV. Triển khai PoC
 
-### 1. Chuẩn bị môi trường
-
-- Cài đặt Docker, Docker Compose.
-- Cấu hình SPIRE Server và SPIRE Agent.
-- Tạo registration entry cho LLM agent và REST API.
-- Cài Envoy proxy và cấu hình listener mTLS + OPA external auth.
-
-### 2. Xây dựng các thành phần
-
-- LLM Agent (Python):
-- Kết nối mTLS với Envoy (SVID từ SPIRE).
-- Gửi request GET/POST tới API /users.
-- REST API (FastAPI):
-- Nhận request từ Envoy.
-- Extract SPIFFE ID từ header.
-- Gửi request tới OPA để kiểm tra quyền truy cập.
-- OPA Policy (Rego):
-- Quy định: chỉ cho phép SPIFFE ID cụ thể truy cập resource cụ thể.
-- Envoy Proxy:
-- Cấu hình TLS context với chứng chỉ SPIRE.
-- Forward SPIFFE ID trong header.
-- Dùng ext_authz gọi tới OPA để xác thực.
-
-### 3. Demo luồng hoạt động
-
-- Agent gửi request truy cập tài nguyên.
-- Envoy xác thực mTLS, chuyển tiếp kèm SPIFFE ID.
-- FastAPI xác minh và chuyển SPIFFE ID tới OPA.
-- OPA quyết định cho phép hoặc từ chối.
-- Trả kết quả về cho agent.
-
-## V. Đánh giá và Bài học rút ra
+## IV. Đánh giá và Bài học rút ra
 
 ### Ưu điểm
 
@@ -132,7 +101,7 @@
 - IAM cho workload là bước đi tất yếu với các hệ thống tự động hóa.
 - Mô hình kết hợp SPIFFE/SPIRE + Envoy + OPA cho thấy hiệu quả cao về bảo mật và kiểm soát.
 
-## VI. Kết luận
+## V. Kết luận
 
 - Tóm tắt vai trò và giá trị của Workload IAM trong bối cảnh hiện đại.
 - Khẳng định tính ứng dụng của các chuẩn như SPIFFE/SPIRE và proxy-based control.

@@ -1,6 +1,6 @@
 [project]
 name = "workload-iam-poc"
 version = "0.1.0"
-description = "Add your description here"
+description = "Workload IAM PoC"
 requires-python = ">=3.11"
 dependencies = []

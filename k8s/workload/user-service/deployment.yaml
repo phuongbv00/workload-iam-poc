@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  labels:
+    app: user-service
+spec:
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: envoy
+          image: envoyproxy/envoy:v1.25.1
+          imagePullPolicy: Always
+          args: [ "-l", "debug", "--local-address-ip-version", "v4", "-c", "/run/envoy/envoy.yaml" ]
+          ports:
+            - containerPort: 9001
+          volumeMounts:
+            - name: envoy-config
+              mountPath: "/run/envoy"
+              readOnly: true
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+        - name: user-service
+          image: wip/user-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: user-service-envoy
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Directory

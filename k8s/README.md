@@ -1,4 +1,5 @@
 ### Considerations When Using Minikube
+
 ```shell
 minikube start \
     --extra-config=apiserver.service-account-signing-key-file=/var/lib/minikube/certs/sa.key \
@@ -95,3 +96,44 @@ kubectl wait --namespace metallb-system \
 ```shell
 kubectl apply -f metallb/metallb-config.yaml
 ```
+
+### Workloads Setup
+
+#### User Service
+
+```shell
+eval $(minikube docker-env)
+docker build -f ../app/user-service/Dockerfile -t wip/user-service:latest ../
+```
+
+```shell
+kubectl create configmap user-service-envoy --from-file=./workload/user-service/envoy.yaml
+```
+
+```shell
+kubectl apply -f workload/user-service/deployment.yaml
+kubectl apply -f workload/user-service/service.yaml
+```
+
+```shell
+kubectl exec -n spire spire-server-0 -- \
+    /opt/spire/bin/spire-server entry create \
+    -parentID spiffe://example.org/ns/spire/sa/spire-agent \
+    -spiffeID spiffe://example.org/ns/default/sa/default/user-service \
+    -selector k8s:ns:default \
+    -selector k8s:sa:default \
+    -selector k8s:pod-label:app:user-service \
+    -selector k8s:container-name:envoy
+```
+
+```shell
+kubectl exec -n spire spire-server-0 -- /opt/spire/bin/spire-server entry show
+```
+
+#### LLM Agent
+
+```shell
+eval $(minikube docker-env)
+docker build -f ../app/llm-agent/Dockerfile -t wip/llm-agent:latest ../
+```
+

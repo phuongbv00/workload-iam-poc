@@ -5,6 +5,10 @@ set -e
 echo "Waiting for SPIRE server to be ready..."
 sleep 10
 
+# Export the server's bundle to the shared trust bundle location
+echo "Exporting server's bundle to shared trust bundle location..."
+spire-server bundle show -socketPath /tmp/spire-server/private/api.sock > /opt/spire/conf/trust/bundle.crt
+
 # Create a join token for the SPIRE agent
 echo "Creating join token for SPIRE agent..."
 TOKEN=$(spire-server token generate -spiffeID spiffe://example.org/agent -ttl 3600)

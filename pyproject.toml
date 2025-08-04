@@ -10,4 +10,7 @@ dependencies = [
     "python-jose>=3.3.0",
     "pydantic>=2.4.2",
     "httpx>=0.25.1",
+    "openai>=1.0.0",
+    "fastapi>=0.116.1,<0.117.0",
+    "pydantic>=2.11.6,<3.0.0",
 ]

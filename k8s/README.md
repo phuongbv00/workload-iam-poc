@@ -126,10 +126,6 @@ kubectl exec -n spire spire-server-0 -- \
     -selector k8s:container-name:envoy
 ```
 
-```shell
-kubectl exec -n spire spire-server-0 -- /opt/spire/bin/spire-server entry show
-```
-
 #### LLM Agent
 
 ```shell
@@ -137,3 +133,22 @@ eval $(minikube docker-env)
 docker build -f ../app/llm-agent/Dockerfile -t wip/llm-agent:latest ../
 ```
 
+```shell
+kubectl create configmap llm-agent-envoy --from-file=./workload/llm-agent/envoy.yaml
+```
+
+```shell
+kubectl exec -n spire spire-server-0 -- \
+    /opt/spire/bin/spire-server entry create \
+    -parentID spiffe://example.org/ns/spire/sa/spire-agent \
+    -spiffeID spiffe://example.org/ns/default/sa/default/llm-agent \
+    -selector k8s:ns:default \
+    -selector k8s:sa:default \
+    -selector k8s:pod-label:app:llm-agent \
+    -selector k8s:container-name:envoy
+```
+
+```shell
+kubectl delete -f workload/llm-agent/deployment.yaml
+kubectl apply -f workload/llm-agent/deployment.yaml
+```

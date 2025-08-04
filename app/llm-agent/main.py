@@ -7,17 +7,11 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from openai import OpenAI
 
-# Load environment variables from .env
-
-# ===============================
-# 1) KHỞI TẠO OPENAI CLIENT
-# ===============================
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise RuntimeError("Missing OPENAI_API_KEY in environment")
 client = OpenAI(api_key=api_key)
 
-# Định nghĩa các hàm (functions) mà LLM được phép gọi
 FUNCTION_DEFINITIONS = [
     {
         "name": "create_user",
@@ -95,11 +89,8 @@ def call_llm_and_route(user_input: str) -> (Optional[str], Optional[Dict]):
     return None, None
 
 
-# ===============================
-# CLASS LLMAgent
-# ===============================
 class LLMAgent:
-    def __init__(self, api_base_url: str = "http://localhost:8000"):
+    def __init__(self, api_base_url: str = os.getenv("API_BASE_URL", "http://localhost:8000")):
         self.api_base_url = api_base_url
         self.session = requests.Session()
         self.agent_id = "spiffe://example.org/agent/llm-agent"
@@ -141,75 +132,37 @@ class LLMAgent:
     def delete_user(self, user_id: str) -> Dict:
         return self._make_request("DELETE", f"/users/{user_id}")
 
-
-# ===============================
-# FASTAPI APP
-# ===============================
 app = FastAPI()
 
-# Request model cho LLM endpoint
-class LLMRequest(BaseModel):
-    text: str
-
 @app.post("/invoke")
-def invoke(request: LLMRequest):
-    func_name, func_args = call_llm_and_route(request.text)
-    if not func_name:
-        raise HTTPException(status_code=400, detail="No function call detected from LLM.")
-    agent = LLMAgent()
-    if not hasattr(agent, func_name):
-        raise HTTPException(status_code=400, detail=f"Function '{func_name}' not found.")
-    result = getattr(agent, func_name)(**func_args)
-    return {
-        "function_called": func_name,
-        "arguments": func_args,
-        "result": result
-    }
-
-@app.get("/demo")
-def demo():
-    agent = LLMAgent()
-    outputs = []
-
-    # 1. Create two users
-    u1 = agent.create_user("Alice Smith", "alice@example.com", "admin")
-    outputs.append({"action": "create_user", "input": {"name": "Alice Smith", "email": "alice@example.com", "role": "admin"}, "output": u1})
-    u2 = agent.create_user("Bob Johnson", "bob@example.com", "user")
-    outputs.append({"action": "create_user", "input": {"name": "Bob Johnson", "email": "bob@example.com", "role": "user"}, "output": u2})
-
-    # 2. Get all users
-    all_users = agent.get_users()
-    outputs.append({"action": "get_users", "output": all_users})
-
-    # 3. Get specific user
-    user_detail = agent.get_user(u1.get("id"))
-    outputs.append({"action": "get_user", "input": {"user_id": u1.get("id")}, "output": user_detail})
-
-    # 4. Update a user
-    updated = agent.update_user(u2.get("id"), "Bob Smith", "bob.smith@example.com", "manager")
-    outputs.append({"action": "update_user", "input": {"user_id": u2.get("id"), "name": "Bob Smith", "email": "bob.smith@example.com", "role": "manager"}, "output": updated})
-
-    # 5. Delete a user
-    deleted = agent.delete_user(u1.get("id"))
-    outputs.append({"action": "delete_user", "input": {"user_id": u1.get("id")}, "output": deleted})
-
-    # 6. Final list
-    final_list = agent.get_users()
-    outputs.append({"action": "get_users", "output": final_list})
-
-    return outputs
-
-@app.get("/start")
-def start():
+def invoke():
     """
-    Endpoint test nhanh: giả lập call LLM và thực thi create_user.
+    Endpoint POST /invoke: sử dụng default text để gọi LLM và thực thi create_user.
     """
-    test_input = 'Tôi muốn tạo user mới thông tin là "Alice Smith", "alice@example.com", "admin"'
-    func_name, func_args = call_llm_and_route(test_input)
+    default_text = 'Tôi muốn tạo user mới thông tin là "Alice Smith", "alice@example.com", "admin"'
+    func_name, func_args = call_llm_and_route(default_text)
     if not func_name:
         raise HTTPException(status_code=400, detail="LLM không xác định được function call.")
     agent = LLMAgent()
     if not hasattr(agent, func_name):
         raise HTTPException(status_code=400, detail=f"Function '{func_name}' không tồn tại.")
     result = getattr(agent, func_name)(**func_args)
-    return {"input": test_input, "function_called": func_name, "arguments": func_args, "result": result}
+    return {"input": default_text, "function_called": func_name, "arguments": func_args, "result": result}
+
+@app.get("/demo")
+def demo():
+    """
+    Demo tuần tự các thao tác CRUD.
+    """
+    agent = LLMAgent()
+    outputs = []
+    u1 = agent.create_user("Alice Smith", "alice@example.com", "admin")
+    outputs.append({"action": "create_user", "output": u1})
+    u2 = agent.create_user("Bob Johnson", "bob@example.com", "user")
+    outputs.append({"action": "create_user", "output": u2})
+    outputs.append({"action": "get_users", "output": agent.get_users()})
+    outputs.append({"action": "get_user", "output": agent.get_user(u1.get("id"))})
+    outputs.append({"action": "update_user", "output": agent.update_user(u2.get("id"), "Bob Smith", "bob.smith@example.com", "manager")})
+    outputs.append({"action": "delete_user", "output": agent.delete_user(u1.get("id"))})
+    outputs.append({"action": "get_users", "output": agent.get_users()})
+    return outputs

@@ -129,7 +129,7 @@ services:
     depends_on:
       - envoy-agent
     environment:
-      - API_BASE_URL=http://envoy-agent:9090
+      - API_BASE_URL=http://user-service:8000
     networks:
       - spire-network
     labels:

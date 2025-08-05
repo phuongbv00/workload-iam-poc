@@ -139,9 +139,15 @@ kubectl apply -f workload/llm-agent/deployment.yaml
 kubectl apply -f workload/llm-agent/service.yaml
 ```
 
-#### Test
+### Pre-test
 
-Logs user-service pod main app:
+Run dashboard for easier debugging (optional):
+
+```shell
+minikube dashboard
+```
+
+Logs user-service pod main app (if not using dashboard):
 
 ```shell
 kubectl get pods --no-headers | awk '/^user-service-/{print $1}' | while read pod; do
@@ -149,7 +155,7 @@ kubectl get pods --no-headers | awk '/^user-service-/{print $1}' | while read po
 done
 ```
 
-Logs user-service pod opa:
+Logs user-service pod opa (if not using dashboard):
 
 ```shell
 kubectl get pods --no-headers | awk '/^user-service-/{print $1}' | while read pod; do
@@ -157,24 +163,48 @@ kubectl get pods --no-headers | awk '/^user-service-/{print $1}' | while read po
 done
 ```
 
-```shell
- minikube tunnel
-```
+Create a tunnel from host to llm-agent for testing:
 
 ```shell
-curl http://localhost:8000/demo
+minikube tunnel
 ```
 
-##### Update OPA Policy
+### Test
 
-```shell
-kubectl delete configmap user-service-opa-policy-config
-kubectl create configmap user-service-opa-policy-config \
-    --from-file=./workload/user-service/opa-config.yaml \
-    --from-file=./workload/user-service/opa-policy.rego
-```
+1. Invoke llm-agent to test happy-case
 
-```shell
-kubectl scale deployment user-service --replicas=0
-kubectl scale deployment user-service --replicas=1
-```
+    ```shell
+    curl http://localhost:8000/demo
+    ```
+
+2. Test invalid request
+
+   Open file `./workload/user-service/opa-policy.rego` and comment-out `DELETE` policy statement:
+    ```rego
+    package envoy.authz
+    #...
+    #allow if {
+    #    startswith(http_request.path, "/users/")
+    #    http_request.method == "DELETE"
+    #    spiffe_id == "spiffe://example.org/ns/default/sa/default/llm-agent"
+    #}
+    ```
+
+   Reset configmap:
+    ```shell
+    kubectl delete configmap user-service-opa-policy-config
+    kubectl create configmap user-service-opa-policy-config \
+        --from-file=./workload/user-service/opa-config.yaml \
+        --from-file=./workload/user-service/opa-policy.rego
+    ```
+
+   Restart user-service:
+    ```shell
+    kubectl scale deployment user-service --replicas=0
+    kubectl scale deployment user-service --replicas=1
+    ```
+
+   Invoke llm-agent:
+    ```shell
+    curl http://localhost:8000/demo
+    ```

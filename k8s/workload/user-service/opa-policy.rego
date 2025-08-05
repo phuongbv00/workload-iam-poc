@@ -7,13 +7,11 @@ import input.attributes.source.certificate as client_cert
 default allow = false
 
 # Extract SPIFFE ID from client certificate
-spiffe_id = client_id if {
-    # Extract URI SAN from certificate
-    [_, _, uri_type_and_value] := split(client_cert, ";")
-    [_, uri] := split(uri_type_and_value, "=")
-    client_id := uri
+spiffe_id = id if {
+   [_, _, uri_type_san] := split(http_request.headers["x-forwarded-client-cert"], ";")
+   [_, spiffe_id] := split(uri_type_san, "=")
+   id := spiffe_id
 }
-
 # Allow access to root endpoint for all authenticated clients
 allow if {
     http_request.path == "/"

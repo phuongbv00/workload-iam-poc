@@ -165,6 +165,15 @@ done
 curl http://localhost:8000/demo
 ```
 
+##### Update OPA Policy
+
+```shell
+kubectl delete configmap user-service-opa-policy-config
+kubectl create configmap user-service-opa-policy-config \
+    --from-file=./workload/user-service/opa-config.yaml \
+    --from-file=./workload/user-service/opa-policy.rego
+```
+
 ```shell
 kubectl scale deployment user-service --replicas=0
 kubectl scale deployment user-service --replicas=1

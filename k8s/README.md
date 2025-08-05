@@ -91,6 +91,9 @@ docker build -f ../app/user-service/Dockerfile -t wip/user-service:latest ../
 
 ```shell
 kubectl create configmap user-service-envoy --from-file=./workload/user-service/envoy.yaml
+kubectl create configmap user-service-opa-policy-config \
+    --from-file=./workload/user-service/opa-config.yaml \
+    --from-file=./workload/user-service/opa-policy.rego
 ```
 
 ```shell
@@ -138,18 +141,31 @@ kubectl apply -f workload/llm-agent/service.yaml
 
 #### Test
 
+Logs user-service pod main app:
+
+```shell
+kubectl get pods --no-headers | awk '/^user-service-/{print $1}' | while read pod; do
+  kubectl logs -f "$pod" -c user-service
+done
+```
+
+Logs user-service pod opa:
+
+```shell
+kubectl get pods --no-headers | awk '/^user-service-/{print $1}' | while read pod; do
+  kubectl logs -f "$pod" -c opa
+done
+```
+
 ```shell
  minikube tunnel
 ```
 
 ```shell
-kubectl get pods --no-headers | awk '/^user-service-/{print $1}' | while read pod; do
-  echo "=== Logs for pod: $pod ==="
-  kubectl logs -f "$pod" -c user-service
-  echo ""
-done
+curl http://localhost:8000/demo
 ```
 
 ```shell
-curl http://localhost:8000/demo
+kubectl scale deployment user-service --replicas=0
+kubectl scale deployment user-service --replicas=1
 ```

@@ -16,7 +16,7 @@ spec:
       containers:
         - name: envoy
           image: envoyproxy/envoy:v1.25.1
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           args: [ "-l", "debug", "--local-address-ip-version", "v4", "-c", "/run/envoy/envoy.yaml" ]
           ports:
             - containerPort: 9001
@@ -32,10 +32,32 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
+        - name: opa
+          image: openpolicyagent/opa:1.7.1-envoy-static
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: opa-envoy
+              containerPort: 8182
+              protocol: TCP
+            - name: opa-api-port
+              containerPort: 8181
+              protocol: TCP
+          args:
+            - "run"
+            - "--server"
+            - "--config-file=/run/opa/opa-config.yaml"
+            - "/run/opa/opa-policy.rego"
+          volumeMounts:
+            - name: backend-opa-policy
+              mountPath: /run/opa
+              readOnly: true
       volumes:
         - name: envoy-config
           configMap:
             name: user-service-envoy
+        - name: backend-opa-policy
+          configMap:
+            name: user-service-opa-policy-config
         - name: spire-agent-socket
           hostPath:
             path: /run/spire/sockets

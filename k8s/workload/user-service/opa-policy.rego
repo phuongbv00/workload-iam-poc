@@ -17,28 +17,28 @@ spiffe_id = client_id if {
 # Allow access to root endpoint for all authenticated clients
 allow if {
     http_request.path == "/"
-    spiffe_id == "spiffe://example.org/agent/llm-agent"
+    spiffe_id == "spiffe://example.org/ns/default/sa/default/llm-agent"
 }
 
 # Allow access to users listing for LLM agent
 allow if {
     http_request.path == "/users"
     http_request.method == "GET"
-    spiffe_id == "spiffe://example.org/agent/llm-agent"
+    spiffe_id == "spiffe://example.org/ns/default/sa/default/llm-agent"
 }
 
 # Allow access to specific user for LLM agent
 allow if {
     startswith(http_request.path, "/users/")
     http_request.method == "GET"
-    spiffe_id == "spiffe://example.org/agent/llm-agent"
+    spiffe_id == "spiffe://example.org/ns/default/sa/default/llm-agent"
 }
 
 # Allow user creation for LLM agent
 allow if {
     http_request.path == "/users"
     http_request.method == "POST"
-    spiffe_id == "spiffe://example.org/agent/llm-agent"
+    spiffe_id == "spiffe://example.org/ns/default/sa/default/llm-agent"
 
     # Optional: Add content validation if needed
     # body := json.unmarshal(http_request.body)
@@ -49,14 +49,14 @@ allow if {
 allow if {
     startswith(http_request.path, "/users/")
     http_request.method == "PUT"
-    spiffe_id == "spiffe://example.org/agent/llm-agent"
+    spiffe_id == "spiffe://example.org/ns/default/sa/default/llm-agent"
 }
 
 # Allow user deletion for LLM agent
 allow if {
     startswith(http_request.path, "/users/")
     http_request.method == "DELETE"
-    spiffe_id == "spiffe://example.org/agent/llm-agent"
+    spiffe_id == "spiffe://example.org/ns/default/sa/default/llm-agent"
 }
 
 # Log all authorization decisions

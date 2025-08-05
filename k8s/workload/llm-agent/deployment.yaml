@@ -16,7 +16,7 @@ spec:
       containers:
         - name: envoy
           image: envoyproxy/envoy:v1.25.1
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           args: [ "-l", "debug", "--local-address-ip-version", "v4", "-c", "/run/envoy/envoy.yaml", "--base-id", "1" ]
           volumeMounts:
             - name: envoy-config

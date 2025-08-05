@@ -12,6 +12,6 @@ RUN uv sync
 COPY ./app/llm-agent/main.py /app/
 
 ENV PYTHONUNBUFFERED=1
-ENV API_BASE_URL=http://envoy-agent:9090
+ENV API_BASE_URL=http://localhost:8001
 
 CMD ["python", "main.py"]

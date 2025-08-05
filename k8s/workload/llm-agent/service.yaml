@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-agent
+spec:
+  ports:
+    - port: 8000
+      name: http
+      protocol: TCP
+      targetPort: 8000
+  selector:
+    app: llm-agent
+  type: LoadBalancer

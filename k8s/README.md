@@ -149,6 +149,6 @@ kubectl exec -n spire spire-server-0 -- \
 ```
 
 ```shell
-kubectl delete -f workload/llm-agent/deployment.yaml
 kubectl apply -f workload/llm-agent/deployment.yaml
+kubectl apply -f workload/llm-agent/service.yaml
 ```

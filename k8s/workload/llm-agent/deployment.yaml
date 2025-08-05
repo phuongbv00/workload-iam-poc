@@ -28,6 +28,8 @@ spec:
         - name: llm-agent
           imagePullPolicy: IfNotPresent
           image: wip/llm-agent:latest
+          ports:
+            - containerPort: 8000
           env:
             - name: API_BASE_URL
               value: "http://localhost:8001"

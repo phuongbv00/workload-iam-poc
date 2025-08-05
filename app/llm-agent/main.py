@@ -1,16 +1,10 @@
-import os
 import json
-import requests
+import os
 from typing import Dict, List, Optional
 
+import requests
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 from openai import OpenAI
-
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise RuntimeError("Missing OPENAI_API_KEY in environment")
-client = OpenAI(api_key=api_key)
 
 FUNCTION_DEFINITIONS = [
     {
@@ -19,9 +13,9 @@ FUNCTION_DEFINITIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "name":  {"type": "string", "description": "Tên của người dùng"},
+                "name": {"type": "string", "description": "Tên của người dùng"},
                 "email": {"type": "string", "description": "Email của người dùng"},
-                "role":  {"type": "string", "description": "Vai trò (user/admin)"}
+                "role": {"type": "string", "description": "Vai trò (user/admin)"}
             },
             "required": ["name", "email", "role"]
         }
@@ -49,9 +43,9 @@ FUNCTION_DEFINITIONS = [
             "type": "object",
             "properties": {
                 "user_id": {"type": "string", "description": "ID của người dùng cần cập nhật"},
-                "name":    {"type": "string", "description": "Tên mới"},
-                "email":   {"type": "string", "description": "Email mới"},
-                "role":    {"type": "string", "description": "Vai trò mới"}
+                "name": {"type": "string", "description": "Tên mới"},
+                "email": {"type": "string", "description": "Email mới"},
+                "role": {"type": "string", "description": "Vai trò mới"}
             },
             "required": ["user_id", "name", "email", "role"]
         }
@@ -71,12 +65,12 @@ FUNCTION_DEFINITIONS = [
 
 
 def call_llm_and_route(user_input: str) -> (Optional[str], Optional[Dict]):
-    """
-    Gửi user_input cho OpenAI GPT-3.5 Turbo, nhận lại function_call nếu có,
-    rồi parse và trả về tên hàm + args để gọi trong code.
-    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("Missing OPENAI_API_KEY in environment")
+    client = OpenAI(api_key=api_key)
     resp = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4.1-mini",
         messages=[{"role": "user", "content": user_input}],
         functions=FUNCTION_DEFINITIONS,
         function_call="auto"
@@ -93,12 +87,10 @@ class LLMAgent:
     def __init__(self, api_base_url: str = os.getenv("API_BASE_URL", "http://localhost:8000")):
         self.api_base_url = api_base_url
         self.session = requests.Session()
-        self.agent_id = "spiffe://example.org/agent/llm-agent"
 
     def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
         url = f"{self.api_base_url}{endpoint}"
         headers = {
-            "X-Forwarded-Client-Cert": f"By=spiffe://example.org/service/user-service;URI={self.agent_id}",
             "Content-Type": "application/json"
         }
         try:
@@ -132,13 +124,12 @@ class LLMAgent:
     def delete_user(self, user_id: str) -> Dict:
         return self._make_request("DELETE", f"/users/{user_id}")
 
+
 app = FastAPI()
+
 
 @app.post("/invoke")
 def invoke():
-    """
-    Endpoint POST /invoke: sử dụng default text để gọi LLM và thực thi create_user.
-    """
     default_text = 'Tôi muốn tạo user mới thông tin là "Alice Smith", "alice@example.com", "admin"'
     func_name, func_args = call_llm_and_route(default_text)
     if not func_name:
@@ -149,11 +140,9 @@ def invoke():
     result = getattr(agent, func_name)(**func_args)
     return {"input": default_text, "function_called": func_name, "arguments": func_args, "result": result}
 
+
 @app.get("/demo")
 def demo():
-    """
-    Demo tuần tự các thao tác CRUD.
-    """
     agent = LLMAgent()
     outputs = []
     u1 = agent.create_user("Alice Smith", "alice@example.com", "admin")
@@ -162,7 +151,14 @@ def demo():
     outputs.append({"action": "create_user", "output": u2})
     outputs.append({"action": "get_users", "output": agent.get_users()})
     outputs.append({"action": "get_user", "output": agent.get_user(u1.get("id"))})
-    outputs.append({"action": "update_user", "output": agent.update_user(u2.get("id"), "Bob Smith", "bob.smith@example.com", "manager")})
+    outputs.append({"action": "update_user",
+                    "output": agent.update_user(u2.get("id"), "Bob Smith", "bob.smith@example.com", "manager")})
     outputs.append({"action": "delete_user", "output": agent.delete_user(u1.get("id"))})
     outputs.append({"action": "get_users", "output": agent.get_users()})
     return outputs
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)

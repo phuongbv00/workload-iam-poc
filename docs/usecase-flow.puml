@@ -1,0 +1,61 @@
+@startuml Usecase Flow
+
+actor "User" as user
+participant "LLM Agent" as llm_agent
+participant "LLM Agent\nEnvoy Proxy" as llm_envoy
+participant "SPIRE Agent" as spire
+participant "User Service\nEnvoy Proxy" as user_envoy
+participant "OPA" as opa
+participant "User Service" as user_service
+
+user -> llm_agent: Make request (e.g., "Create a new user")
+activate llm_agent
+
+llm_agent -> llm_envoy: Forward request to User Service
+activate llm_envoy
+
+note right of llm_envoy
+  Envoy retrieves SVID from SPIRE
+  and establishes mTLS connection
+end note
+
+llm_envoy -> spire: Get SVID for mTLS
+spire -> llm_envoy: Return SVID with SPIFFE ID
+
+llm_envoy -> user_envoy: Send request with mTLS
+activate user_envoy
+
+note right of user_envoy
+  Envoy validates client certificate
+  and extracts SPIFFE ID
+end note
+
+user_envoy -> spire: Validate client certificate
+spire -> user_envoy: Confirm certificate validity
+
+user_envoy -> opa: Authorization request with SPIFFE ID
+activate opa
+opa -> opa: Evaluate policy based on\nSPIFFE ID, method, path
+opa -> user_envoy: Authorization decision
+deactivate opa
+
+alt Authorization Allowed
+    user_envoy -> user_service: Forward request
+    activate user_service
+    user_service -> user_service: Process request
+    user_service -> user_envoy: Response
+    deactivate user_service
+    user_envoy -> llm_envoy: Response with mTLS
+    deactivate user_envoy
+    llm_envoy -> llm_agent: Forward response
+    deactivate llm_envoy
+    llm_agent -> user: Return result
+else Authorization Denied
+    user_envoy -> llm_envoy: 403 Forbidden
+    llm_envoy -> llm_agent: Forward error
+    llm_agent -> user: Return error
+end
+
+deactivate llm_agent
+
+@enduml

@@ -1,0 +1,52 @@
+@startuml Deployment Diagram
+
+' Define Kubernetes cluster
+node "Kubernetes Cluster" {
+  ' SPIRE namespace
+  node "SPIRE Namespace" {
+    component "SPIRE Server" as spire_server
+    component "SPIRE Agent" as spire_agent
+
+    spire_server --> spire_agent : issue X.509-SVIDs
+  }
+
+  ' Default namespace
+  node "Default Namespace" {
+    ' LLM Agent K8s Service
+    component "LLM Agent LoadBalancer" as llm_service
+
+    ' LLM Agent Pod
+    node "LLM Agent Pod" {
+      component "LLM Agent" as llm_agent
+      component "Envoy Proxy" as llm_envoy
+
+      llm_agent --> llm_envoy : forwards requests
+    }
+
+    llm_service --> llm_agent : routes to pod
+
+    ' User Service Pod
+    node "User Service Pod" {
+      component "User Service" as user_service
+      component "Envoy Proxy" as user_envoy
+      component "OPA" as opa
+
+      user_envoy --> opa : authorization request
+      opa --> user_envoy : authorization decision
+      user_envoy --> user_service : forwards authorized requests
+    }
+
+    ' Connections between pods
+    llm_envoy --> user_envoy : mTLS communication
+  }
+
+  ' SPIRE Agent connections
+  spire_agent --> llm_envoy : provides X.509-SVIDs
+  spire_agent --> user_envoy : provides X.509-SVIDs
+}
+
+' External user
+actor "User" as user
+user --> llm_service : makes requests
+
+@enduml

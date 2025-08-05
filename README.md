@@ -42,7 +42,7 @@ The architecture follows the principles outlined in the INSTRUCTION.md file:
 ## Running the PoC
 
 ### Prerequisites
-- Docker and Docker Compose
+- K8s/Minikube
 
 ### Steps
 
@@ -53,9 +53,7 @@ The architecture follows the principles outlined in the INSTRUCTION.md file:
    ```
 
 2. Build and start the services:
-   ```
-   docker-compose up --build
-   ```
+   [Quickstart with K8s](./k8s)
 
 3. The LLM agent will automatically run a demo that:
    - Creates users
@@ -101,9 +99,8 @@ This PoC can be extended in several ways:
 
 1. **Add more workloads**: Register additional services with SPIRE
 2. **Enhance policies**: Add more complex authorization rules in OPA
-3. **Integrate with Kubernetes**: Deploy in a Kubernetes cluster with SPIRE
-4. **Add monitoring**: Integrate with observability tools
-5. **Implement credential rotation**: Add automatic credential rotation
+3. **Add monitoring**: Integrate with observability tools
+4. **Implement credential rotation**: Add automatic credential rotation
 
 ## References
 

@@ -1,148 +1,168 @@
-import json
 import os
+import json
+import requests
 from typing import Dict, List, Optional
 
-import requests
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from openai import OpenAI
+
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise RuntimeError("Missing OPENAI_API_KEY in environment")
+client = OpenAI(api_key=api_key)
+
+FUNCTION_DEFINITIONS = [
+    {
+        "name": "create_user",
+        "description": "Tạo mới một người dùng với tên, email và vai trò.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name":  {"type": "string", "description": "Tên của người dùng"},
+                "email": {"type": "string", "description": "Email của người dùng"},
+                "role":  {"type": "string", "description": "Vai trò (user/admin)"}
+            },
+            "required": ["name", "email", "role"]
+        }
+    },
+    {
+        "name": "get_user",
+        "description": "Lấy thông tin người dùng theo ID.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "string", "description": "ID của người dùng cần lấy"}
+            },
+            "required": ["user_id"]
+        }
+    },
+    {
+        "name": "get_users",
+        "description": "Lấy danh sách tất cả người dùng.",
+        "parameters": {"type": "object", "properties": {}, "required": []}
+    },
+    {
+        "name": "update_user",
+        "description": "Cập nhật thông tin người dùng.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "string", "description": "ID của người dùng cần cập nhật"},
+                "name":    {"type": "string", "description": "Tên mới"},
+                "email":   {"type": "string", "description": "Email mới"},
+                "role":    {"type": "string", "description": "Vai trò mới"}
+            },
+            "required": ["user_id", "name", "email", "role"]
+        }
+    },
+    {
+        "name": "delete_user",
+        "description": "Xóa người dùng theo ID.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "string", "description": "ID của người dùng cần xóa"}
+            },
+            "required": ["user_id"]
+        }
+    },
+]
+
+
+def call_llm_and_route(user_input: str) -> (Optional[str], Optional[Dict]):
+    """
+    Gửi user_input cho OpenAI GPT-3.5 Turbo, nhận lại function_call nếu có,
+    rồi parse và trả về tên hàm + args để gọi trong code.
+    """
+    resp = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": user_input}],
+        functions=FUNCTION_DEFINITIONS,
+        function_call="auto"
+    )
+    message = resp.choices[0].message
+    if message.function_call:
+        name = message.function_call.name
+        args = json.loads(message.function_call.arguments)
+        return name, args
+    return None, None
 
 
 class LLMAgent:
-    """
-    A simple LLM agent that interacts with the User Management API.
-    In a real-world scenario, this would integrate with an actual LLM,
-    but for this PoC, we'll simulate the agent's behavior.
-    """
-
-    def __init__(self, api_base_url: str = "http://localhost:8000"):
-        """
-        Initialize the LLM agent with the API base URL.
-
-        In a production environment with Envoy, this would typically be:
-        http://localhost:9901 (Envoy proxy address)
-        """
+    def __init__(self, api_base_url: str = os.getenv("API_BASE_URL", "http://localhost:8000")):
         self.api_base_url = api_base_url
         self.session = requests.Session()
-
-        # In a real implementation with SPIFFE/SPIRE, the agent would
-        # obtain its identity automatically. For this PoC, we'll simulate it.
         self.agent_id = "spiffe://example.org/agent/llm-agent"
 
-        print(f"LLM Agent initialized with ID: {self.agent_id}")
-        print(f"API base URL: {self.api_base_url}")
-
     def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
-        """
-        Make an HTTP request to the API through the Envoy proxy.
-
-        Args:
-            method: HTTP method (GET, POST, PUT, DELETE)
-            endpoint: API endpoint
-            data: Request payload (for POST/PUT)
-
-        Returns:
-            API response as a dictionary
-        """
         url = f"{self.api_base_url}{endpoint}"
-
-        # In a real implementation with SPIFFE/SPIRE and Envoy,
-        # the SPIFFE ID would be automatically included in mTLS
-        # Here we simulate by adding a header
         headers = {
             "X-Forwarded-Client-Cert": f"By=spiffe://example.org/service/user-service;URI={self.agent_id}",
             "Content-Type": "application/json"
         }
-
         try:
             if method == "GET":
-                response = self.session.get(url, headers=headers)
+                r = self.session.get(url, headers=headers)
             elif method == "POST":
-                response = self.session.post(url, headers=headers, json=data)
+                r = self.session.post(url, headers=headers, json=data)
             elif method == "PUT":
-                response = self.session.put(url, headers=headers, json=data)
+                r = self.session.put(url, headers=headers, json=data)
             elif method == "DELETE":
-                response = self.session.delete(url, headers=headers)
+                r = self.session.delete(url, headers=headers)
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
-
-            # Check if the request was successful
-            response.raise_for_status()
-
-            # For DELETE requests that return no content
-            if response.status_code == 204:
-                return {"status": "success"}
-
-            return response.json()
-
-        except requests.exceptions.RequestException as e:
-            print(f"Request error: {e}")
+            r.raise_for_status()
+            return {} if r.status_code == 204 else r.json()
+        except requests.RequestException as e:
             return {"error": str(e)}
 
     def get_users(self) -> List[Dict]:
-        """Get all users from the API"""
-        response = self._make_request("GET", "/users")
-        return response if isinstance(response, list) else []
+        return self._make_request("GET", "/users") or []
 
     def get_user(self, user_id: str) -> Dict:
-        """Get a specific user by ID"""
         return self._make_request("GET", f"/users/{user_id}")
 
     def create_user(self, name: str, email: str, role: str = "user") -> Dict:
-        """Create a new user"""
-        data = {"name": name, "email": email, "role": role}
-        return self._make_request("POST", "/users", data)
+        return self._make_request("POST", "/users", {"name": name, "email": email, "role": role})
 
     def update_user(self, user_id: str, name: str, email: str, role: str) -> Dict:
-        """Update an existing user"""
-        data = {"name": name, "email": email, "role": role}
-        return self._make_request("PUT", f"/users/{user_id}", data)
+        return self._make_request("PUT", f"/users/{user_id}", {"name": name, "email": email, "role": role})
 
     def delete_user(self, user_id: str) -> Dict:
-        """Delete a user"""
         return self._make_request("DELETE", f"/users/{user_id}")
 
-    def run_demo(self):
-        """Run a demonstration of the agent's capabilities"""
-        print("\n=== LLM Agent Demo ===\n")
+app = FastAPI()
 
-        # Create a few users
-        print("Creating users...")
-        user1 = self.create_user("Alice Smith", "alice@example.com", "admin")
-        print(f"Created user: {json.dumps(user1, indent=2)}")
+@app.post("/invoke")
+def invoke():
+    """
+    Endpoint POST /invoke: sử dụng default text để gọi LLM và thực thi create_user.
+    """
+    default_text = 'Tôi muốn tạo user mới thông tin là "Alice Smith", "alice@example.com", "admin"'
+    func_name, func_args = call_llm_and_route(default_text)
+    if not func_name:
+        raise HTTPException(status_code=400, detail="LLM không xác định được function call.")
+    agent = LLMAgent()
+    if not hasattr(agent, func_name):
+        raise HTTPException(status_code=400, detail=f"Function '{func_name}' không tồn tại.")
+    result = getattr(agent, func_name)(**func_args)
+    return {"input": default_text, "function_called": func_name, "arguments": func_args, "result": result}
 
-        user2 = self.create_user("Bob Johnson", "bob@example.com", "user")
-        print(f"Created user: {json.dumps(user2, indent=2)}")
-
-        # Get all users
-        print("\nGetting all users...")
-        users = self.get_users()
-        print(f"All users: {json.dumps(users, indent=2)}")
-
-        # Get a specific user
-        print(f"\nGetting user {user1['id']}...")
-        user = self.get_user(user1['id'])
-        print(f"User details: {json.dumps(user, indent=2)}")
-
-        # Update a user
-        print(f"\nUpdating user {user2['id']}...")
-        updated_user = self.update_user(user2['id'], "Bob Smith", "bob.smith@example.com", "manager")
-        print(f"Updated user: {json.dumps(updated_user, indent=2)}")
-
-        # Delete a user
-        print(f"\nDeleting user {user1['id']}...")
-        result = self.delete_user(user1['id'])
-        print(f"Delete result: {json.dumps(result, indent=2)}")
-
-        # Verify deletion
-        print("\nGetting all users after deletion...")
-        users = self.get_users()
-        print(f"All users: {json.dumps(users, indent=2)}")
-
-        print("\n=== Demo Complete ===")
-
-
-if __name__ == "__main__":
-    # In a real deployment, this would connect to the Envoy proxy
-    # For direct testing without Envoy, we can connect to the API directly
-    # Use API_BASE_URL environment variable or fall back to default
-    api_base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
-    agent = LLMAgent(api_base_url=api_base_url)
-    agent.run_demo()
+@app.get("/demo")
+def demo():
+    """
+    Demo tuần tự các thao tác CRUD.
+    """
+    agent = LLMAgent()
+    outputs = []
+    u1 = agent.create_user("Alice Smith", "alice@example.com", "admin")
+    outputs.append({"action": "create_user", "output": u1})
+    u2 = agent.create_user("Bob Johnson", "bob@example.com", "user")
+    outputs.append({"action": "create_user", "output": u2})
+    outputs.append({"action": "get_users", "output": agent.get_users()})
+    outputs.append({"action": "get_user", "output": agent.get_user(u1.get("id"))})
+    outputs.append({"action": "update_user", "output": agent.update_user(u2.get("id"), "Bob Smith", "bob.smith@example.com", "manager")})
+    outputs.append({"action": "delete_user", "output": agent.delete_user(u1.get("id"))})
+    outputs.append({"action": "get_users", "output": agent.get_users()})
+    return outputs

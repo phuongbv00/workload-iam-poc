@@ -25,27 +25,27 @@ llm_envoy -> user_envoy: Send request with mTLS
 
 user_envoy -> user_envoy: Extract client SPIFFE ID
 
-user_envoy -> opa: Authorization request with SPIFFE ID
+user_envoy -> opa: Authorize request\nwith SPIFFE ID
 activate opa
 opa -> opa: Evaluate policy based on\nSPIFFE ID, method, path
-opa -> user_envoy: Authorization decision
+opa --> user_envoy: Authorization decision
 deactivate opa
 
 alt Authorization Allowed
     user_envoy -> user_service: Forward request
     activate user_service
     user_service -> user_service: Process request
-    user_service -> user_envoy: Response
+    user_service --> user_envoy: Response
     deactivate user_service
-    user_envoy -> llm_envoy: Response with mTLS
+    user_envoy --> llm_envoy: Response with mTLS
     deactivate user_envoy
-    llm_envoy -> llm_agent: Forward response
+    llm_envoy --> llm_agent: Forward response
     deactivate llm_envoy
-    llm_agent -> user: Return result
+    llm_agent --> user: Return result
 else Authorization Denied
-    user_envoy -> llm_envoy: 403 Forbidden
-    llm_envoy -> llm_agent: Forward error
-    llm_agent -> user: Return error
+    user_envoy --> llm_envoy: 403 Forbidden
+    llm_envoy --> llm_agent: Forward error
+    llm_agent --> user: Return error
 end
 
 deactivate llm_agent

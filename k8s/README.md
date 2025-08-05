@@ -49,10 +49,10 @@ kubectl apply \
 #### Verify SPIRE Components
 
 ```shell
-kubectl get statefulset --namespace spire
-kubectl get daemonset --namespace spire
-kubectl get pods --namespace spire
-kubectl get services --namespace spire
+kubectl get statefulset -n spire
+kubectl get daemonset -n spire
+kubectl get pods -n spire
+kubectl get services -n spire
 ```
 
 #### SPIRE Registration Entries
@@ -78,23 +78,6 @@ kubectl exec -n spire spire-server-0 -- \
     -parentID spiffe://example.org/ns/spire/sa/spire-agent \
     -selector k8s:ns:default \
     -selector k8s:sa:default
-```
-
-### MetalLB Installation
-
-```shell
-kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml
-```
-
-```shell
-kubectl wait --namespace metallb-system \
-                --for=condition=ready pod \
-                --selector=app=metallb \
-                --timeout=90s
-```
-
-```shell
-kubectl apply -f metallb/metallb-config.yaml
 ```
 
 ### Workloads Setup
@@ -151,4 +134,22 @@ kubectl exec -n spire spire-server-0 -- \
 ```shell
 kubectl apply -f workload/llm-agent/deployment.yaml
 kubectl apply -f workload/llm-agent/service.yaml
+```
+
+#### Test
+
+```shell
+ minikube tunnel
+```
+
+```shell
+kubectl get pods --no-headers | awk '/^user-service-/{print $1}' | while read pod; do
+  echo "=== Logs for pod: $pod ==="
+  kubectl logs -f "$pod" -c user-service
+  echo ""
+done
+```
+
+```shell
+curl http://localhost:8000/demo
 ```

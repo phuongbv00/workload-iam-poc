@@ -3,7 +3,8 @@
 actor "User" as user
 participant "LLM Agent" as llm_agent
 participant "LLM Agent\nEnvoy Proxy" as llm_envoy
-participant "SPIRE Agent" as spire
+participant "SPIRE Server" as spire_server
+participant "SPIRE Agent" as spire_agent
 participant "User Service\nEnvoy Proxy" as user_envoy
 participant "OPA" as opa
 participant "User Service" as user_service
@@ -14,24 +15,15 @@ activate llm_agent
 llm_agent -> llm_envoy: Forward request to User Service
 activate llm_envoy
 
-note right of llm_envoy
-  Envoy retrieves SVID from SPIRE
-  and establishes mTLS connection
-end note
-
-llm_envoy -> spire: Get SVID for mTLS
-spire -> llm_envoy: Return SVID with SPIFFE ID
-
-llm_envoy -> user_envoy: Send request with mTLS
 activate user_envoy
 
-note right of user_envoy
-  Envoy validates client certificate
-  and extracts SPIFFE ID
-end note
+ref over llm_envoy, user_envoy
+    mTLS Handshake
+end ref
 
-user_envoy -> spire: Validate client certificate
-spire -> user_envoy: Confirm certificate validity
+llm_envoy -> user_envoy: Send request with mTLS
+
+user_envoy -> user_envoy: Extract client SPIFFE ID
 
 user_envoy -> opa: Authorization request with SPIFFE ID
 activate opa

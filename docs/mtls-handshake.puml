@@ -1,0 +1,52 @@
+@startuml mTLS Handshake
+
+participant "LLM Agent\nEnvoy Proxy" as llm_envoy
+participant "SPIRE Server" as spire_server
+participant "SPIRE Agent" as spire_agent
+participant "User Service\nEnvoy Proxy" as user_envoy
+
+llm_envoy -> user_envoy: TCP Handshake
+user_envoy --> llm_envoy: TCP Handshake Complete
+
+llm_envoy -> user_envoy: TLS Client Hello
+
+' Server requests SVID during handshake
+user_envoy -> spire_agent: Request SVID
+activate spire_agent
+
+' SPIRE Agent requests workload SVIDs from SPIRE Server
+spire_agent -> spire_server: Request workload SVIDs
+activate spire_server
+spire_server --> spire_agent: Issue SVIDs + Trust Bundle
+deactivate spire_server
+
+spire_agent --> user_envoy: SVID (X.509 cert) + Trust Bundle
+deactivate spire_agent
+
+user_envoy -> llm_envoy: TLS Server Hello + SVID
+user_envoy -> llm_envoy: Request Client Certificate
+
+' Client requests SVID during handshake
+llm_envoy -> spire_agent: Request SVID
+activate spire_agent
+
+' SPIRE Agent requests workload SVIDs from SPIRE Server
+spire_agent -> spire_server: Request workload SVIDs
+activate spire_server
+spire_server --> spire_agent: Issue SVIDs + Trust Bundle
+deactivate spire_server
+
+spire_agent --> llm_envoy: SVID (X.509 cert) + Trust Bundle
+deactivate spire_agent
+
+llm_envoy -> user_envoy: SVID + Key Exchange
+user_envoy -> user_envoy: Verify SVID (using Trust Bundle)
+
+user_envoy -> llm_envoy: TLS Finished
+llm_envoy -> user_envoy: TLS Finished
+
+note over llm_envoy, user_envoy
+    Secure mTLS channel established
+end note
+
+@enduml

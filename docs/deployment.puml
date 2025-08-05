@@ -7,7 +7,7 @@ node "Kubernetes Cluster" {
     component "SPIRE Server" as spire_server
     component "SPIRE Agent" as spire_agent
 
-    spire_server --> spire_agent : issue X.509-SVIDs
+    spire_server --> spire_agent : issues SVIDs + Trust bundle
   }
 
   ' Default namespace
@@ -41,8 +41,8 @@ node "Kubernetes Cluster" {
   }
 
   ' SPIRE Agent connections
-  spire_agent --> llm_envoy : provides X.509-SVIDs
-  spire_agent --> user_envoy : provides X.509-SVIDs
+  spire_agent --> llm_envoy : delivers SVIDs + Trust bundle
+  spire_agent --> user_envoy : delivers SVIDs + Trust bundle
 }
 
 ' External user

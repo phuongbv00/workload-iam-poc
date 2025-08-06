@@ -124,6 +124,10 @@ kubectl create configmap llm-agent-envoy --from-file=./workload/llm-agent/envoy.
 ```
 
 ```shell
+kubectl create secret generic openai-api-key --from-literal=OPENAI_API_KEY=<YOUR_API_KEY>
+```
+
+```shell
 kubectl exec -n spire spire-server-0 -- \
     /opt/spire/bin/spire-server entry create \
     -parentID spiffe://example.org/ns/spire/sa/spire-agent \
